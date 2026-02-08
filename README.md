@@ -1,4 +1,4 @@
-# WordPress Plugin Security Development Skill
+# My Tiny WordPress Plugin Security Development Skill
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![WordPress](https://img.shields.io/badge/WordPress-5.0%2B-blue.svg)](https://wordpress.org/)
