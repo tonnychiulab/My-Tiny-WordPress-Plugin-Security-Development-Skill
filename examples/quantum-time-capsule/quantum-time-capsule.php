@@ -28,7 +28,7 @@ define('QUANTUM_TIME_CAPSULE_VERSION', '1.0.0');
 /**
  * The code that runs during plugin activation.
  */
-function activate_quantum_time_capsule()
+function quantum_time_capsule_activate()
 {
     require_once plugin_dir_path(__FILE__) . 'includes/class-quantum-time-capsule.php';
     $plugin = new Quantum_Time_Capsule();
@@ -38,13 +38,13 @@ function activate_quantum_time_capsule()
 /**
  * The code that runs during plugin deactivation.
  */
-function deactivate_quantum_time_capsule()
+function quantum_time_capsule_deactivate()
 {
     // Flush rewrite rules if necessary
 }
 
-register_activation_hook(__FILE__, 'activate_quantum_time_capsule');
-register_deactivation_hook(__FILE__, 'deactivate_quantum_time_capsule');
+register_activation_hook(__FILE__, 'quantum_time_capsule_activate');
+register_deactivation_hook(__FILE__, 'quantum_time_capsule_deactivate');
 
 /**
  * The core plugin class that is used to define internationalization,
@@ -55,10 +55,10 @@ require plugin_dir_path(__FILE__) . 'includes/class-quantum-time-capsule.php';
 /**
  * Begins execution of the plugin.
  */
-function run_quantum_time_capsule()
+function quantum_time_capsule_run()
 {
     $plugin = new Quantum_Time_Capsule();
     $plugin->run();
 }
 
-run_quantum_time_capsule();
+quantum_time_capsule_run();

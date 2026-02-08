@@ -177,9 +177,10 @@ class Quantum_Time_Capsule
             check_admin_referer('qtc_add_action', 'qtc_nonce');
 
             // 4. Input Sanitization
-            $title       = isset($_POST['title']) ? sanitize_text_field($_POST['title']) : '';
-            $raw_content = isset($_POST['content']) ? sanitize_textarea_field($_POST['content']) : '';
-            $reveal_date = isset($_POST['reveal_date']) ? sanitize_text_field($_POST['reveal_date']) : '';
+            // Fix: MissingUnslash warning - Use wp_unslash before sanitization
+            $title       = isset($_POST['title']) ? sanitize_text_field(wp_unslash($_POST['title'])) : '';
+            $raw_content = isset($_POST['content']) ? sanitize_textarea_field(wp_unslash($_POST['content'])) : '';
+            $reveal_date = isset($_POST['reveal_date']) ? sanitize_text_field(wp_unslash($_POST['reveal_date'])) : '';
 
             // Validation
             if (empty($title) || empty($raw_content) || empty($reveal_date)) {
@@ -196,8 +197,11 @@ class Quantum_Time_Capsule
             }
 
             // 6. SQL Injection Prevention ($wpdb->prepare)
+            // 6. SQL Injection Prevention ($wpdb->prepare)
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
             $wpdb->query(
                 $wpdb->prepare(
+                    // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
                     "INSERT INTO $table_name (title, encrypted_content, iv, reveal_date, created_at) VALUES (%s, %s, %s, %s, %s)",
                     $title,
                     $encrypted_package['content'],
@@ -206,6 +210,9 @@ class Quantum_Time_Capsule
                     current_time('mysql')
                 )
             );
+
+            // Clear cache
+            wp_cache_delete('qtc_all_capsules', 'quantum_time_capsule');
 
             // Redirect Success
             wp_safe_redirect(add_query_arg('msg', 'added', admin_url('admin.php?page=quantum-time-capsule')));
@@ -221,12 +228,16 @@ class Quantum_Time_Capsule
 
             if ($id > 0) {
                 // 6. SQL Injection Prevention
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
                 $wpdb->query(
                     $wpdb->prepare(
+                        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
                         "DELETE FROM $table_name WHERE id = %d",
                         $id
                     )
                 );
+                // Clear cache
+                wp_cache_delete('qtc_all_capsules', 'quantum_time_capsule');
             }
 
             wp_safe_redirect(add_query_arg('msg', 'deleted', admin_url('admin.php?page=quantum-time-capsule')));
@@ -240,7 +251,9 @@ class Quantum_Time_Capsule
     public function render_page()
     {
         // Output Escaping: Always escape output
-        $msg = isset($_GET['msg']) ? sanitize_text_field($_GET['msg']) : '';
+        // Fix: MissingUnslash warning
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $msg = isset($_GET['msg']) ? sanitize_text_field(wp_unslash($_GET['msg'])) : '';
 ?>
         <div class="wrap">
             <div class="qtc-header">
@@ -304,8 +317,16 @@ class Quantum_Time_Capsule
                     <?php
                     global $wpdb;
                     $table_name = $wpdb->prefix . 'quantum_capsules';
-                    // Using get_results implies read query, but output must still be escaped
-                    $capsules = $wpdb->get_results("SELECT * FROM $table_name ORDER BY created_at DESC");
+
+                    // Implement Object Caching to Fix: DirectDatabaseQuery.NoCaching
+                    $capsules = wp_cache_get('qtc_all_capsules', 'quantum_time_capsule');
+
+                    if (false === $capsules) {
+                        // Using get_results implies read query, but output must still be escaped
+                        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
+                        $capsules = $wpdb->get_results("SELECT * FROM $table_name ORDER BY created_at DESC");
+                        wp_cache_set('qtc_all_capsules', $capsules, 'quantum_time_capsule', 3600);
+                    }
 
                     if ($capsules) {
                         foreach ($capsules as $capsule) {
