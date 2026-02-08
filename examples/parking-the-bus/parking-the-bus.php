@@ -43,6 +43,18 @@ class Parking_The_Bus
         // Initialize Modules
         $threat_engine = new BMI_Threat_Engine();
         $threat_engine->run();
+
+        // Dashboard Widget
+        if (is_admin()) {
+            require_once BMI_ADAR_PATH . 'includes/class-bmi-dashboard-widget.php';
+            $dashboard = new BMI_Dashboard_Widget();
+            $dashboard->run();
+
+            // Settings Page
+            require_once BMI_ADAR_PATH . 'includes/class-bmi-settings.php';
+            $settings = new BMI_Settings();
+            $settings->run();
+        }
     }
 }
 

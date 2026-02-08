@@ -30,27 +30,43 @@ class BMI_Threat_Engine
     /**
      * 記錄攻擊事件到資料庫
      */
+    /**
+     * 記錄攻擊事件到資料庫
+     */
     private function log_incident($ip, $reason)
     {
         global $wpdb;
         $table_name = $wpdb->prefix . BMI_ADAR_DB_TABLE;
 
-        // 檢查是否已經有這個 IP 的 Pending 報告，避免重複刷
-        $exists = $wpdb->get_var($wpdb->prepare(
-            "SELECT id FROM $table_name WHERE source_ip = %s AND status = 0",
-            $ip
-        ));
+        // 取得 API Key
+        $api_key = get_option('bmi_abuseipdb_key');
+        $asn = '';
+        $isp = '';
 
-        if (! $exists) {
-            $wpdb->insert(
-                $table_name,
-                array(
-                    'source_ip' => $ip,
-                    'evidence_blob' => $reason, // 暫時存原因，之後存完整 Log
-                    'status' => 0 // Pending
-                ),
-                array('%s', '%s', '%d')
-            );
+        // 如果有 Key，就去查情資 (Intelligence Check)
+        if (! empty($api_key)) {
+            require_once BMI_ADAR_PATH . 'includes/class-bmi-abuseipdb.php';
+            $abuse_client = new BMI_AbuseIPDB($api_key);
+            $ip_data = $abuse_client->check_ip($ip);
+
+            if (! is_wp_error($ip_data) && isset($ip_data['isp'])) {
+                $isp = $ip_data['isp'];
+                $asn = isset($ip_data['asn']) ? 'AS' . $ip_data['asn'] : '';
+                // 未來可以在這裡由 ASN 判斷是否為 AWS/GCP，決定 status 或 report_method
+            }
         }
+
+        // 寫入資料庫 (含情資)
+        $wpdb->insert(
+            $table_name,
+            array(
+                'source_ip' => $ip,
+                'asn' => $asn,
+                'isp_name' => $isp,
+                'evidence_blob' => $reason,
+                'status' => 0 // Pending
+            ),
+            array('%s', '%s', '%s', '%s', '%d')
+        );
     }
 }
