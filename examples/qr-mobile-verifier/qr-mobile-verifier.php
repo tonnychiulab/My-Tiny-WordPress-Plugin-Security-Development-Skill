@@ -131,8 +131,8 @@ class QR_Mobile_Verifier
         // 為了模擬，我們先用一個簡單的 URL 參數
         $verify_url = home_url('/?qrmv_action=verify&token=' . $token);
 
-        // 使用 Google Chart API 生成 QR Code 圖片 (最簡單的方法，不用外掛)
-        $qr_image = 'https://chart.googleapis.com/chart?chs=300x300&cht=qr&chl=' . urlencode($verify_url) . '&choe=UTF-8';
+        // 使用 QRServer API (替代已棄用的 Google Charts)
+        $qr_image = 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=' . urlencode($verify_url);
 
         ob_start();
 ?>
@@ -141,7 +141,12 @@ class QR_Mobile_Verifier
             <p>為了保護您的帳戶安全，請使用手機掃描下方 QR Code 進行驗證。</p>
 
             <div class="qrmv-qr-code">
-                <img src="<?php echo esc_url($qr_image); ?>" alt="Scan to Verify" />
+                <img src="<?php echo esc_url($qr_image); ?>" alt="Scan to Verify" style="max-width:100%; height:auto;" />
+            </div>
+
+            <div style="margin-top:10px; font-size:12px; color:#888;">
+                <p>看不到 QR Code 嗎？</p>
+                <a href="<?php echo esc_url($verify_url); ?>" target="_blank" style="text-decoration:underline;">👉 點擊這裡開啟模擬手機驗證頁面 (測試用)</a>
             </div>
 
             <div id="qrmv-status" style="margin-top:15px; font-weight:bold; color:#666;">

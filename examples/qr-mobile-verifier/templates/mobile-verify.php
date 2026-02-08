@@ -34,23 +34,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // STEP 1: 提交手機號碼 (執行風控檢查)
     if ($step === 2 && isset($_POST['phone'])) {
-        $phone = sanitize_text_field($_POST['phone']);
+        // 強制過濾非數字字符
+        $phone = preg_replace('/[^0-9]/', '', $_POST['phone']);
 
-        // 風控檢查 (Phone Level)
-        $phone_check = $risk_control->check_phone($phone);
-        if ($phone_check !== true) {
-            $error_message = "❌ " . $phone_check;
-            $step = 1; // 回到輸入手機號碼
+        if (! $phone) {
+            $error_message = "❌ 請輸入有效的手機號碼 (僅限數字)";
+            $step = 1;
         } else {
-            // 通過風控，產生模擬驗證碼 888888
-            $sim_code = '888888';
-            $step = 2; // 進入輸入驗證碼的畫面
+            // 風控檢查 (Phone Level)
+            $phone_check = $risk_control->check_phone($phone);
+            if ($phone_check !== true) {
+                $error_message = "❌ " . $phone_check;
+                $step = 1; // 回到輸入手機號碼
+            } else {
+                // 通過風控，產生模擬驗證碼 888888
+                $sim_code = '888888';
+
+                // 🛡️ 保護使用者隱私：遮蔽手機號碼後 5 碼
+                // 例如：0912345678 -> 09123*****
+                $masked_phone = strlen($phone) > 5
+                    ? substr($phone, 0, -5) . '*****'
+                    : '*****';
+
+                $step = 2; // 進入輸入驗證碼的畫面
+            }
         }
     }
 
     // STEP 2: 提交驗證碼 (完成驗證)
     if ($step === 3 && isset($_POST['sms_code'])) {
-        $code = sanitize_text_field($_POST['sms_code']);
+        // 強制過濾非數字字符
+        $code = preg_replace('/[^0-9]/', '', $_POST['sms_code']);
 
         if ($code === '888888') {
             // A. 更新 Transient 狀態 -> 'verified'
@@ -74,6 +88,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $step = 99; // Success
         } else {
             $error_message = "驗證碼錯誤，請輸入 888888";
+            // 重新計算遮蔽號碼 (因為我們要留在 Step 2)
+            $phone_hidden = isset($_POST['phone_hidden']) ? $_POST['phone_hidden'] : '';
+            $masked_phone = strlen($phone_hidden) > 5 ? substr($phone_hidden, 0, -5) . '*****' : '*****';
             $step = 2; // 回到輸入驗證碼
         }
     }
@@ -162,8 +179,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <!-- 畫面 1: 輸入手機號碼 -->
             <h2>📱 手機驗證</h2>
             <p>為了確保帳戶安全，請輸入您的手機號碼以接收驗證碼。</p>
+
+            <?php if ($error_message) : ?>
+                <div class="error"><?php echo esc_html($error_message); ?></div>
+            <?php endif; ?>
+
             <form method="post">
-                <input type="tel" name="phone" placeholder="0912-345-678" required>
+                <input type="tel" name="phone" placeholder="0912345678" required
+                    pattern="[0-9]*" inputmode="numeric"
+                    oninput="this.value = this.value.replace(/[^0-9]/g, '');">
                 <input type="hidden" name="step" value="2">
                 <button type="submit">發送驗證碼</button>
             </form>
@@ -171,17 +195,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <?php elseif ($step === 2) : ?>
             <!-- 畫面 2: 輸入驗證碼 -->
             <h2>🔒 輸入驗證碼</h2>
-            <p>請輸入傳送至您手機的 6 位數代碼。</p>
+            <p>
+                驗證碼已傳送至：<br>
+                <strong style="font-size: 1.2em; color: #333; letter-spacing: 1px;">
+                    <?php echo esc_html($masked_phone); ?>
+                </strong>
+            </p>
 
             <?php if ($error_message) : ?>
                 <div class="error"><?php echo esc_html($error_message); ?></div>
             <?php endif; ?>
 
             <form method="post">
-                <input type="text" name="sms_code" placeholder="888888" maxlength="6" required>
+                <input type="text" name="sms_code" placeholder="888888" maxlength="6" required
+                    pattern="[0-9]*" inputmode="numeric" autocomplete="one-time-code"
+                    oninput="this.value = this.value.replace(/[^0-9]/g, '');">
                 <input type="hidden" name="step" value="3">
                 <!-- 保存手機號碼供最後寫入 DB -->
-                <input type="hidden" name="phone_hidden" value="<?php echo esc_attr(isset($_POST['phone']) ? $_POST['phone'] : ''); ?>">
+                <input type="hidden" name="phone_hidden" value="<?php echo esc_attr(isset($_POST['phone']) ? $_POST['phone'] : (isset($_POST['phone_hidden']) ? $_POST['phone_hidden'] : '')); ?>">
                 <button type="submit">驗證</button>
             </form>
 
@@ -189,16 +220,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="sim-sms-popup">
                 🔔 [模擬簡訊] <br>
                 您的驗證碼是：<strong>888888</strong>
+            <?php elseif ($step === 99) : ?>
+                <!-- 畫面 3: 成功 -->
+                <h2 style="color: green;">✅ 驗證成功</h2>
+                <p>您的身份已確認！<br>現在您可以查看電腦螢幕。</p>
+                <p style="font-size: 12px; color: #999;">(此頁面將自動關閉...)</p>
+
+            <?php endif; ?>
             </div>
-
-        <?php elseif ($step === 99) : ?>
-            <!-- 畫面 3: 成功 -->
-            <h2 style="color: green;">✅ 驗證成功</h2>
-            <p>您的身份已確認！<br>現在您可以查看電腦螢幕。</p>
-            <p style="font-size: 12px; color: #999;">(此頁面將自動關閉...)</p>
-
-        <?php endif; ?>
-    </div>
 
 </body>
 
